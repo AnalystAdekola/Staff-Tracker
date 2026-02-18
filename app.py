@@ -11,15 +11,18 @@ st.markdown("""
     .stApp { background-color: #FFFDD0; }
     h1, h2, h3, p, span, label { color: #2E7D32 !important; }
     
-    /* FIX FOR BUTTON LABEL VISIBILITY */
-    .stButton>button {
+    /* AGGRESSIVE FIX FOR BUTTON TEXT VISIBILITY */
+    .stButton>button, .stFormSubmitButton>button {
         background-color: #2E7D32 !important;
-        color: white !important;
+        color: #FFFFFF !important;
         border-radius: 10px;
         border: 2px solid #2E7D32;
         padding: 0.6rem 2rem;
-        font-weight: bold !important;
-        font-size: 16px !important;
+        font-weight: 900 !important;
+        font-size: 18px !important;
+        text-transform: uppercase;
+        opacity: 1 !important;
+        visibility: visible !important;
     }
     
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>textarea {
@@ -53,7 +56,7 @@ if not st.session_state.logged_in:
     role_choice = st.sidebar.radio("Login as:", ["User", "Admin"])
     user_input = st.sidebar.text_input("Enter Credentials", type="password")
 
-    # FIXED BUTTON LABEL
+    # 3 & 4. BUTTON WITH CLEAR TEXT
     if st.sidebar.button("ENTER"): 
         if role_choice == "Admin" and user_input == "MainlandTep":
             st.session_state.logged_in = True
@@ -68,21 +71,20 @@ if not st.session_state.logged_in:
         else:
             st.sidebar.error("Invalid details.")
 else:
-    # GLOBAL SIDEBAR OPTIONS
-    if st.sidebar.button("Logout"):
+    # LOGOUT BUTTON
+    if st.sidebar.button("LOGOUT"):
         st.session_state.logged_in = False
         st.rerun()
     
-    # 3. TOGGLE OPTION FOR ADMIN
+    # TOGGLE OPTION FOR ADMIN
     if st.session_state.role == "Admin":
         admin_mode = st.sidebar.toggle("Switch to User View", value=False)
         current_view = "User" if admin_mode else "Admin"
     else:
         current_view = "User"
 
-    # 5. USER INTERFACE (Submission & History)
+    # 5. USER INTERFACE
     if current_view == "User":
-        # Handle Admin acting as User
         display_name = st.session_state.user_name if st.session_state.user_name else "Admin (Testing)"
         st.sidebar.info(f"Viewing as: {display_name}")
         
@@ -92,7 +94,10 @@ else:
             st.title("📝 New Work Plan")
             with st.form("user_form"):
                 st.write(f"Staff: **{display_name}**")
-                s_date = st.date_input("Date", date.today())
+                
+                # 2. DATE MUST BE TODAY (Disabled so they can't change it)
+                s_date = st.date_input("Date", date.today(), disabled=True)
+                
                 s_plan = st.text_area("Work Plan Details")
                 c1, c2 = st.columns(2)
                 s_left = c1.number_input("Hours left to completion", min_value=0)
@@ -100,7 +105,7 @@ else:
                 s_comm = st.text_input("Comment")
                 
                 confirm = st.checkbox("Confirm details")
-                submit_btn = st.form_submit_button("Submit Plan")
+                submit_btn = st.form_submit_button("SUBMIT PLAN")
 
                 if submit_btn and confirm:
                     new_entry = pd.DataFrame([{
@@ -111,35 +116,48 @@ else:
                         "Hours planned for this week": s_planned,
                         "Comment": s_comm
                     }])
-                    # 4. IMMEDIATE REFLECTION
-                    current_df = conn.read(worksheet="Tracker", ttl=0) # ttl=0 forces fresh data
+                    current_df = conn.read(worksheet="Tracker", ttl=0)
                     updated_df = pd.concat([current_df, new_entry], ignore_index=True)
                     conn.update(worksheet="Tracker", data=updated_df)
-                    st.success("Submitted! Check history or dashboard.")
+                    st.success("Submitted successfully!")
                     st.balloons()
 
         elif choice == "My History":
             st.title("🕒 Your History")
-            # Force refresh from Google Sheets
             my_history = conn.read(worksheet="Tracker", ttl=0)
             my_history = my_history[my_history['Staff Name'] == display_name]
-            st.table(my_history[::-1]) # Show newest first
+            st.table(my_history[::-1])
 
-    # 6. ADMIN INTERFACE (No Status Column)
+    # 6. ADMIN INTERFACE (With Name and Date Filter)
     elif current_view == "Admin":
         st.title("👨‍💼 Admin Master Dashboard")
-        # 2. READ DATA WITHOUT STATUS
         df = conn.read(worksheet="Tracker", ttl=0)
         
         if not df.empty:
-            # Explicitly remove 'Status' column if it exists in the sheet
             if 'Status' in df.columns:
                 df = df.drop(columns=['Status'])
+
+            # 1. NAME AND DATE FILTERS
+            st.subheader("Filters")
+            col_f1, col_f2 = st.columns(2)
             
-            search = st.text_input("Search Staff Name")
-            if search:
-                df = df[df['Staff Name'].str.contains(search, case=False)]
+            # Name Filter
+            unique_names = ["All"] + sorted(df["Staff Name"].unique().tolist())
+            name_filter = col_f1.selectbox("Filter by Name", unique_names)
             
-            st.dataframe(df, use_container_width=True)
+            # Date Filter
+            date_filter = col_f2.date_input("Filter by Date", value=None)
+
+            # Apply Filters to the Dataframe
+            filtered_df = df.copy()
+            if name_filter != "All":
+                filtered_df = filtered_df[filtered_df["Staff Name"] == name_filter]
+            
+            if date_filter:
+                filtered_df = filtered_df[filtered_df["Date"] == str(date_filter)]
+            
+            st.write("---")
+            st.write(f"Showing **{len(filtered_df)}** records")
+            st.dataframe(filtered_df, use_container_width=True)
         else:
             st.info("No data found in the Tracker.")
