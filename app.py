@@ -11,12 +11,12 @@ st.markdown("""
     .stApp { background-color: #FFFDD0; }
     h1, h2, h3, p, span, label { color: #2E7D32 !important; }
     
-    /* BUTTON STYLING: RED FILL WITH BLACK TEXT */
+    /* UPDATED BUTTON STYLE: WHITE FILL, BOLD BLACK TEXT */
     .stButton>button, .stFormSubmitButton>button {
-        background-color: #FF0000 !important; /* Pure Red */
-        color: #000000 !important;             /* Pure Black */
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
         border-radius: 10px;
-        border: 2px solid #000000;
+        border: 3px solid #2E7D32; /* Kept the green border for branding */
         padding: 0.6rem 2rem;
         font-weight: 900 !important;
         font-size: 18px !important;
@@ -24,11 +24,11 @@ st.markdown("""
         opacity: 1 !important;
         visibility: visible !important;
     }
-    
-    /* Ensure hover effect doesn't wash out the black text */
+
+    /* Hover effect to make it feel interactive */
     .stButton>button:hover {
-        color: #000000 !important;
-        border: 2px solid #2E7D32;
+        background-color: #F0F0F0 !important;
+        border-color: #1B5E20;
     }
     
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>textarea {
@@ -62,7 +62,7 @@ if not st.session_state.logged_in:
     role_choice = st.sidebar.radio("Login as:", ["User", "Admin"])
     user_input = st.sidebar.text_input("Enter Credentials", type="password")
 
-    # ENTER BUTTON
+    # LOGIN BUTTON
     if st.sidebar.button("ENTER"): 
         if role_choice == "Admin" and user_input == "MainlandTep":
             st.session_state.logged_in = True
@@ -101,7 +101,7 @@ else:
             with st.form("user_form"):
                 st.write(f"Staff: **{display_name}**")
                 
-                # DATE LOCKED TO TODAY
+                # DATE LOCKDOWN
                 s_date = st.date_input("Date", date.today(), disabled=True)
                 
                 s_plan = st.text_area("Work Plan Details")
@@ -143,14 +143,12 @@ else:
             if 'Status' in df.columns:
                 df = df.drop(columns=['Status'])
 
+            # FILTERS
             st.subheader("Filters")
             col_f1, col_f2 = st.columns(2)
             
-            # Name Filter
             unique_names = ["All"] + sorted(df["Staff Name"].unique().tolist())
             name_filter = col_f1.selectbox("Filter by Name", unique_names)
-            
-            # Date Filter
             date_filter = col_f2.date_input("Filter by Date", value=None)
 
             filtered_df = df.copy()
