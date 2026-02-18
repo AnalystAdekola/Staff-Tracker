@@ -11,10 +11,10 @@ st.markdown("""
     .stApp { background-color: #FFFDD0; }
     h1, h2, h3, p, span, label { color: #2E7D32 !important; }
     
-    /* AGGRESSIVE FIX FOR BUTTON TEXT VISIBILITY */
+    /* UPDATED: BUTTON TEXT COLOR TO BLACK */
     .stButton>button, .stFormSubmitButton>button {
         background-color: #2E7D32 !important;
-        color: #FFFFFF !important;
+        color: #000000 !important; /* Pure Black Text */
         border-radius: 10px;
         border: 2px solid #2E7D32;
         padding: 0.6rem 2rem;
@@ -56,7 +56,7 @@ if not st.session_state.logged_in:
     role_choice = st.sidebar.radio("Login as:", ["User", "Admin"])
     user_input = st.sidebar.text_input("Enter Credentials", type="password")
 
-    # 3 & 4. BUTTON WITH CLEAR TEXT
+    # ENTER BUTTON WITH BLACK TEXT
     if st.sidebar.button("ENTER"): 
         if role_choice == "Admin" and user_input == "MainlandTep":
             st.session_state.logged_in = True
@@ -95,7 +95,7 @@ else:
             with st.form("user_form"):
                 st.write(f"Staff: **{display_name}**")
                 
-                # 2. DATE MUST BE TODAY (Disabled so they can't change it)
+                # DATE LOCKED TO TODAY
                 s_date = st.date_input("Date", date.today(), disabled=True)
                 
                 s_plan = st.text_area("Work Plan Details")
@@ -128,7 +128,7 @@ else:
             my_history = my_history[my_history['Staff Name'] == display_name]
             st.table(my_history[::-1])
 
-    # 6. ADMIN INTERFACE (With Name and Date Filter)
+    # 6. ADMIN INTERFACE
     elif current_view == "Admin":
         st.title("👨‍💼 Admin Master Dashboard")
         df = conn.read(worksheet="Tracker", ttl=0)
@@ -137,7 +137,6 @@ else:
             if 'Status' in df.columns:
                 df = df.drop(columns=['Status'])
 
-            # 1. NAME AND DATE FILTERS
             st.subheader("Filters")
             col_f1, col_f2 = st.columns(2)
             
@@ -148,7 +147,7 @@ else:
             # Date Filter
             date_filter = col_f2.date_input("Filter by Date", value=None)
 
-            # Apply Filters to the Dataframe
+            # Apply Filters
             filtered_df = df.copy()
             if name_filter != "All":
                 filtered_df = filtered_df[filtered_df["Staff Name"] == name_filter]
