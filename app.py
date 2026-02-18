@@ -6,18 +6,25 @@ from datetime import date
 # 1. PAGE SETUP & THEME
 st.set_page_config(page_title="Mainland Group Portal", layout="wide")
 
+# Custom CSS for colors and button text visibility
 st.markdown("""
     <style>
     .stApp { background-color: #FFFDD0; }
     h1, h2, h3, p, span, label { color: #2E7D32 !important; }
-    /* Fix for button text visibility */
+    
+    /* Fix for button text - forced white and visible */
     .stButton>button {
         background-color: #2E7D32 !important;
         color: white !important;
         border-radius: 10px;
         border: none;
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 2rem;
+        font-weight: bold;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
+    
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>textarea {
         background-color: white !important;
         color: black !important;
@@ -44,12 +51,17 @@ if 'logged_in' not in st.session_state:
 
 # 4. LOGIN INTERFACE
 if not st.session_state.logged_in:
-    st.sidebar.title("🏢 Mainland Group")
-    # New Role Selector
+    # 6. WELCOME SPLASH PAGE
+    st.title("🤝 WELCOME TO MAINLAND")
+    st.subheader("Mainland Group Staff Management Portal")
+    st.write("Please use the sidebar to log in.")
+    
+    st.sidebar.title("🏢 Login Portal")
     role_choice = st.sidebar.radio("Select Login Role:", ["User", "Admin"])
     user_input = st.sidebar.text_input("Enter First Name or Admin Password", type="password")
 
-    if st.sidebar.button("ENTER"): # Added label to button
+    # 2. FIXED BUTTON LABEL
+    if st.sidebar.button("ENTER"): 
         if role_choice == "Admin" and user_input == "MainlandTep":
             st.session_state.logged_in = True
             st.session_state.role = "Admin"
@@ -63,6 +75,13 @@ if not st.session_state.logged_in:
         else:
             st.sidebar.error("Access Denied. Please check your credentials.")
 else:
+    # Sidebar Logout Button (Always available when logged in)
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.role = None
+        st.session_state.user_name = None
+        st.rerun()
+
     # 5. USER INTERFACE
     if st.session_state.role == "User":
         st.sidebar.info(f"Welcome, {st.session_state.user_name}")
@@ -71,7 +90,6 @@ else:
         if choice == "Submit Work Plan":
             st.title("📝 New Work Plan Submission")
             with st.form("user_form"):
-                # Locked the name selection so it cannot be changed
                 st.info(f"Logged in as: {st.session_state.user_name}")
                 s_date = st.date_input("Select Date", date.today())
                 s_plan = st.text_area("What is your work plan?")
@@ -87,59 +105,51 @@ else:
                 if submit_btn:
                     if confirm:
                         new_entry = pd.DataFrame([{
-                            "Staff Name": st.session_state.user_name, # Forced from session
-                            "Date": str(s_date), "Work Plan": s_plan,
-                            "Hours left to completion": s_left, "Hours planned for this week": s_planned,
-                            "Comment": s_comm, "Status": "Pending"
+                            "Staff Name": st.session_state.user_name,
+                            "Date": str(s_date), 
+                            "Work Plan": s_plan,
+                            "Hours left to completion": s_left, 
+                            "Hours planned for this week": s_planned,
+                            "Comment": s_comm
                         }])
                         current_df = conn.read(worksheet="Tracker")
+                        # Combine and update
                         updated_df = pd.concat([current_df, new_entry], ignore_index=True)
                         conn.update(worksheet="Tracker", data=updated_df)
-                        st.success("Submitted! Status: 🟡 Pending")
+                        st.success("Submitted successfully!")
+                        # 3. FORCE REFRESH SO IT REFLECTS IN HISTORY IMMEDIATELY
+                        st.balloons()
                     else:
                         st.warning("Please check the confirmation box first.")
 
         elif choice == "My History":
-            st.title("🕒 Submission History")
+            st.title("🕒 Your Submission History")
             all_data = conn.read(worksheet="Tracker")
+            # Filter just for this staff member
             my_data = all_data[all_data['Staff Name'] == st.session_state.user_name]
-            for i, row in my_data.iterrows():
-                stat = row['Status']
-                color = "🟡" if stat == "Pending" else "🟢" if stat == "Approved" else "🔴"
-                with st.expander(f"{color} Plan for {row['Date']} - {stat}"):
-                    st.write(f"**Plan:** {row['Work Plan']}")
-                    st.write(f"**Hours Left:** {row['Hours left to completion']}")
-                    st.write(f"**Comment:** {row['Comment']}")
+            
+            if my_data.empty:
+                st.write("No history found.")
+            else:
+                for i, row in my_data[::-1].iterrows(): # Shows newest first
+                    with st.expander(f"Plan for {row['Date']}"):
+                        st.write(f"**Plan:** {row['Work Plan']}")
+                        st.write(f"**Hours Left:** {row['Hours left to completion']}")
+                        st.write(f"**Comment:** {row['Comment']}")
 
-    # 6. ADMIN INTERFACE
+    # 4. ADMIN INTERFACE
     elif st.session_state.role == "Admin":
-        st.title("👨‍💼 Admin Dashboard")
+        st.title("👨‍💼 Admin Master Dashboard")
+        st.write("Viewing all staff submissions (Approval system removed).")
+        
         df = conn.read(worksheet="Tracker")
-        pending = df[df['Status'] == "Pending"]
-
-        if pending.empty:
-            st.info("No pending submissions to review.")
+        
+        if df.empty:
+            st.info("The spreadsheet is currently empty.")
         else:
-            for idx, row in pending.iterrows():
-                st.subheader(f"Request from: {row['Staff Name']}")
-                st.write(f"**Date:** {row['Date']} | **Hours:** {row['Hours planned for this week']}")
-                st.write(f"**Plan:** {row['Work Plan']}")
-                
-                # Fixed column error: st.columns(2) instead of 5
-                c1, c2 = st.columns(2)
-                if c1.button("✅ Approve", key=f"a{idx}"):
-                    df.at[idx, 'Status'] = "Approved"
-                    conn.update(worksheet="Tracker", data=df)
-                    st.rerun()
-                if c2.button("❌ Decline", key=f"d{idx}"):
-                    df.at[idx, 'Status'] = "Declined"
-                    conn.update(worksheet="Tracker", data=df)
-                    st.rerun()
-                st.write("---")
-
-    # 7. LOGOUT
-    if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.role = None
-        st.session_state.user_name = None
-        st.rerun()
+            # Add a search/filter to Admin view
+            search_query = st.text_input("Search by Staff Name")
+            if search_query:
+                df = df[df['Staff Name'].str.contains(search_query, case=False)]
+            
+            st.dataframe(df, use_container_width=True)
