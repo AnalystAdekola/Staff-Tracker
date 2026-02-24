@@ -82,7 +82,6 @@ if not st.session_state.logged_in:
             st.session_state.role = "Admin"
             st.rerun()
         elif role_choice == "Reviewer":
-            # Match first name as password
             reviewer_found = next((name for name in reviewer_mapping.keys() if name.split()[0].upper() == user_input.upper() or (name=="ANALYST" and user_input.upper()=="ANALYST")), None)
             if reviewer_found:
                 st.session_state.logged_in = True
@@ -171,31 +170,56 @@ else:
         df = conn.read(worksheet="Tracker", ttl=0)
         assigned_staff = reviewer_mapping.get(st.session_state.user_name, [])
         
-        # Filter data for only assigned staff
+        # Base filter for assigned staff
         reviewer_df = df[df['Staff Name'].isin(assigned_staff)]
         
         if not reviewer_df.empty:
-            st.subheader("Assigned Staff Submissions")
-            # Select a specific row to review
-            selected_row_idx = st.selectbox("Select Submission Row to Add/Edit Review Comment", reviewer_df.index)
-            selected_data = reviewer_df.loc[selected_row_idx]
+            # 6a. FILTER SECTION FOR REVIEWER
+            st.subheader("Filters")
+            col_rev1, col_rev2 = st.columns(2)
             
-            st.info(f"Reviewing: {selected_data['Staff Name']} | Task: {selected_data['Work Plan'][:50]}...")
+            # Reviewer can only filter within their assigned staff list
+            rev_name_filter = col_rev1.selectbox("Filter Assigned Staff", ["All"] + sorted(list(set(reviewer_df["Staff Name"]))))
+            rev_date_range = col_rev2.date_input("Filter by Period (Reviewer)", value=[])
+
+            filtered_rev_df = reviewer_df.copy()
             
-            with st.form("review_form"):
-                review_comment = st.text_area("Add Reviewer Comment", value=str(selected_data.get('Review', "")))
-                submit_review = st.form_submit_button("UPDATE REVIEW")
-                
-                if submit_review:
-                    df.at[selected_row_idx, 'Review'] = review_comment
-                    conn.update(worksheet="Tracker", data=df)
-                    st.success("Review updated!")
-                    st.rerun()
+            if rev_name_filter != "All":
+                filtered_rev_df = filtered_rev_df[filtered_rev_df["Staff Name"] == rev_name_filter]
             
+            if len(rev_date_range) == 2:
+                filtered_rev_df = filtered_rev_df[
+                    (pd.to_datetime(filtered_rev_df['Start Date']).dt.date >= rev_date_range[0]) & 
+                    (pd.to_datetime(filtered_rev_df['Start Date']).dt.date <= rev_date_range[1])
+                ]
+
             st.write("---")
-            st.dataframe(reviewer_df, use_container_width=True)
+            
+            # 6b. COMMENT SECTION
+            if not filtered_rev_df.empty:
+                st.subheader("Add/Update Review")
+                selected_row_idx = st.selectbox("Select a submission to comment on", filtered_rev_df.index)
+                selected_data = filtered_rev_df.loc[selected_row_idx]
+                
+                st.info(f"Commenting on: **{selected_data['Staff Name']}** | Task: {selected_data['Work Plan'][:60]}...")
+                
+                with st.form("review_form"):
+                    review_comment = st.text_area("Reviewer Comment", value=str(selected_data.get('Review', "")))
+                    submit_review = st.form_submit_button("SAVE COMMENT")
+                    
+                    if submit_review:
+                        # We update the original master 'df' using the index
+                        df.at[selected_row_idx, 'Review'] = review_comment
+                        conn.update(worksheet="Tracker", data=df)
+                        st.success("Comment saved successfully!")
+                        st.rerun()
+                
+                st.write("### Assigned Tasks View")
+                st.dataframe(filtered_rev_df, use_container_width=True)
+            else:
+                st.warning("No records found matching these filters.")
         else:
-            st.info("No submissions found for your assigned staff.")
+            st.info("No submissions found for your assigned staff yet.")
 
     # 7. ADMIN INTERFACE
     elif current_view == "Admin":
@@ -211,6 +235,9 @@ else:
             if name_filter != "All":
                 filtered_df = filtered_df[filtered_df["Staff Name"] == name_filter]
             if len(date_range) == 2:
-                filtered_df = filtered_df[(pd.to_datetime(filtered_df['Start Date']).dt.date >= date_range[0]) & (pd.to_datetime(filtered_df['Start Date']).dt.date <= date_range[1])]
+                filtered_df = filtered_df[
+                    (pd.to_datetime(filtered_df['Start Date']).dt.date >= date_range[0]) & 
+                    (pd.to_datetime(filtered_df['Start Date']).dt.date <= date_range[1])
+                ]
             
             st.dataframe(filtered_df, use_container_width=True)
